@@ -6,10 +6,30 @@ const userSchema = new mongoose.Schema(
     name: { type: String, required: true },
     email: { type: String, required: true, unique: true, lowercase: true },
     password: { type: String, required: true },
-    role: { type: String, enum: ['client', 'company', 'admin'], default: 'client' },
+    role: { type: String, enum: ['client', 'serviceProvider', 'admin'], default: 'client' },
+    status: { type: String, enum: ['pending', 'active'], default: 'pending', index: true },
     interests: [String],
     phone: String,
+    verified: { type: Boolean, default: false },
     avatar: String,
+    // Service Provider-specific fields
+    taxId: String,
+    licenseNumber: String,
+    legalForm: String, // Legal form of the company (e.g., 'limited_liability', 'public_company')
+    companyType: String, // Business activity sector (e.g., 'financial_sector', 'industrial_sector')
+    contactPersonName: String, // Name of the contact person
+    documents: [
+      {
+        url: { type: String, required: true },
+        publicId: { type: String }, // Cloudinary public ID for deletion
+        name: { type: String },
+        type: { type: String }, // e.g., 'license', 'certificate', 'id'
+        uploadedAt: { type: Date, default: Date.now },
+      },
+    ],
+    // Client-specific fields
+    address: String,
+    nationality: String,
   },
   { timestamps: true }
 );
@@ -25,6 +45,7 @@ userSchema.methods.comparePassword = function (candidate) {
   return bcrypt.compare(candidate, this.password);
 };
 
-export const User = mongoose.model('User', userSchema);
+// Prevent model recompilation during hot reload
+export const User = mongoose.models.User || mongoose.model('User', userSchema);
 
 

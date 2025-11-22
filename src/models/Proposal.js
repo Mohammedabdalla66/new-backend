@@ -3,7 +3,8 @@ import mongoose from 'mongoose';
 const proposalSchema = new mongoose.Schema(
   {
     request: { type: mongoose.Schema.Types.ObjectId, ref: 'Request', required: true, index: true },
-    company: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true, index: true },
+    serviceProvider: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true, index: true },
+    company: { type: mongoose.Schema.Types.ObjectId, ref: 'User', index: true }, // Legacy field for backward compatibility
     price: { type: Number, required: true, min: 0 },
     durationDays: { type: Number, required: true, min: 1 },
     notes: { type: String, trim: true },
@@ -16,7 +17,7 @@ const proposalSchema = new mongoose.Schema(
     ],
     status: {
       type: String,
-      enum: ['pending', 'accepted', 'rejected', 'canceled'],
+      enum: ['pending', 'active', 'rejected', 'accepted', 'canceled'],
       default: 'pending',
       index: true,
     },

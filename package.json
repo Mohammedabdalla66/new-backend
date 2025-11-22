@@ -5,10 +5,14 @@
   "type": "module",
   "scripts": {
     "dev": "nodemon src/server.js",
-    "start": "node src/server.js"
+    "start": "node src/server.js",
+    "test:socket": "node src/scripts/testSocket.js",
+    "test:notify": "node src/scripts/sendTestNotification.js"
   },
   "dependencies": {
+    "axios": "^1.7.9",
     "bcryptjs": "^2.4.3",
+    "cloudinary": "^2.8.0",
     "cookie-parser": "^1.4.6",
     "cors": "^2.8.5",
     "dotenv": "^16.4.5",
@@ -22,7 +26,8 @@
     "multer": "^1.4.5-lts.1",
     "nodemailer": "^7.0.10",
     "socket.io": "^4.8.1",
-    "socket.io-client": "^4.8.1"
+    "socket.io-client": "^4.8.1",
+    "twilio": "^5.3.5"
   },
   "devDependencies": {
     "nodemon": "^3.0.1"
