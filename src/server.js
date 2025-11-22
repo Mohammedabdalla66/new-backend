@@ -14,7 +14,7 @@ import requestRoutes from './routes/requestRoutes.js';
 import bookingRoutes from './routes/bookingRoutes.js';
 import walletRoutes from './routes/walletRoutes.js';
 import messageRoutes from './routes/messageRoutes.js';
-import firmRoutes from './routes/firmRoutes.js';
+import serviceProviderRoutes from './routes/serviceProviderRoutes.js';
 import adminRoutes from './routes/adminRoutes.js';
 import { notFound, errorHandler } from './middlewares/errorHandler.js';
 import Notification from './models/Notification.js';
@@ -26,9 +26,26 @@ dotenv.config();
 
 const app = express();
 app.use(cors({ origin: process.env.CORS_ORIGIN || true, credentials: true }));
-app.use(helmet());
+
+// Configure Helmet with CSP that allows inline scripts for test page
+app.use(helmet({
+  contentSecurityPolicy: {
+    directives: {
+      defaultSrc: ["'self'"],
+      scriptSrc: ["'self'", "'unsafe-inline'", "'unsafe-eval'", "https://cdn.socket.io"],
+      scriptSrcAttr: ["'unsafe-inline'"],
+      styleSrc: ["'self'", "'unsafe-inline'"],
+      connectSrc: ["'self'", "ws:", "wss:", "http://localhost:*", "https://localhost:*"],
+      imgSrc: ["'self'", "data:", "https:"],
+      fontSrc: ["'self'", "https:", "data:"],
+    },
+  },
+  crossOriginEmbedderPolicy: false,
+}));
+
 app.use(rateLimit({ windowMs: 15 * 60 * 1000, max: 300 }));
 app.use(express.json({ limit: '2mb' }));
+app.use(express.urlencoded({ extended: true, limit: '10mb' })); // For FormData
 app.use(cookieParser());
 app.use(morgan('dev'));
 
@@ -36,18 +53,16 @@ app.get('/api/health', (req, res) => res.json({ status: 'ok' }));
 app.use('/api/auth', authRoutes);
 app.use('/api/users', userRoutes);
 app.use('/api/requests', requestRoutes);
+console.log('✅ Request routes registered at /api/requests');
 app.use('/api/bookings', bookingRoutes);
 app.use('/api/wallet', walletRoutes);
 app.use('/api/messages', messageRoutes);
-app.use('/api/firm', firmRoutes);
+app.use('/api/service-provider', serviceProviderRoutes);
 app.use('/api/admin', adminRoutes);
-app.use(notFound);
-app.use(errorHandler);
+console.log('✅ Admin routes registered at /api/admin');
 
 const server = http.createServer(app);
 const io = initializeSocket(server);
-
-await connectDB();
 
 // Socket.io events are handled in sockets/socket.js
 
@@ -59,37 +74,98 @@ const transporter = nodemailer.createTransport({
     },
 });
 
-app.post('/api/notify' , async (req , res) => {
-    const {interests , title , message } =req.body;
-    io.to(interests).emit('notification' , { title , message });
-    const users = await User.find({ interests:interests }); 
-    const notification = users.map((user) => ({
-        user : user._id,
-        title, 
-        message,
-        link : `/services/${interests[0]}`,
+// Notification endpoint (must be before notFound middleware)
+app.post('/api/notify', async (req, res) => {
+  try {
+    const { interests, title, message } = req.body;
+    if (!interests || !Array.isArray(interests) || interests.length === 0) {
+      return res.status(400).json({ message: 'interests array is required' });
+    }
+    if (!title || !message) {
+      return res.status(400).json({ message: 'title and message are required' });
+    }
 
+    // Find users with matching interests
+    const users = await User.find({ interests: { $in: interests } });
+    
+    // Create notification records
+    const notifications = users.map((user) => ({
+      user: user._id,
+      title,
+      Message: message,
+      link: `/services/${interests[0]}`,
+      data: { interests },
     }));
-    await Notification.insertMany(notification);
-    for (const user of users){
-        // email users who are offline (simple heuristic; you can enrich using sockets map exposed from sockets module if needed)
-        if(user.notifyByEmail){
-            await transporter.sendMail({
-            from : process.env.EMAIL_USER,
-            to : user.email,
-            subject : `New Notification: ${title}`,
-            text : message,
+    
+    if (notifications.length > 0) {
+      await Notification.insertMany(notifications);
+    }
+
+    // Emit to interest rooms
+    for (const interest of interests) {
+      io.to(interest).emit('notification', { title, message, link: `/services/${interest}` });
+    }
+
+    // Send to specific user sockets and handle offline users
+    const { getUserSockets } = await import('./sockets/socket.js');
+    const userSockets = getUserSockets();
+    
+    for (const user of users) {
+      const uid = user._id.toString();
+      const sockets = userSockets.get(uid);
+      
+      if (sockets && sockets.size > 0) {
+        // User is online - send via socket
+        const notification = notifications.find(n => n.user.toString() === uid);
+        sockets.forEach(socketId => {
+          io.to(socketId).emit('newNotification', notification);
+        });
+      } else if (user.notifyByEmail) {
+        // User is offline - send email
+        await transporter.sendMail({
+          from: process.env.EMAIL_USER,
+          to: user.email,
+          subject: `New Notification: ${title}`,
+          text: message,
         });
         console.log(`Email sent to ${user.email} for notification: ${title}`);
-        }
-    } 
-    res.json({ success : true , message : 'Notifications sent' })  
+      }
+    }
+    
+    res.json({ success: true, message: 'Notifications sent', count: users.length });
+  } catch (err) {
+    console.error('Notification error:', err);
+    res.status(500).json({ message: 'Server error', error: err.message });
+  }
 });
 
-const PORT = process.env.PORT || 5000;
+// Static files and error handlers (must be after all routes)
+app.use(express.static('public'));
+app.use('/uploads', express.static('uploads')); // Serve uploaded files
+app.use(notFound);
+app.use(errorHandler);
 
-server.listen(PORT, () => {
-  console.log(`✅ Server running on http://localhost:${PORT}`);
-});
+// Start server function
+async function startServer() {
+  try {
+    // Connect to database first
+    await connectDB();
+    
+    // Start HTTP server
+    const PORT = process.env.PORT || 5000;
+    server.listen(PORT, () => {
+      console.log(`✅ Server running on http://localhost:${PORT}`);
+      console.log(`✅ Socket.io initialized and ready`);
+      console.log(`✅ Test page available at http://localhost:${PORT}/socket-test.html`);
+      console.log(`✅ Admin routes registered: /api/admin/clients, /api/admin/transactions, /api/admin/reports/daily`);
+    });
+  } catch (error) {
+    console.error('❌ Failed to start server:', error);
+    process.exit(1);
+  }
+}
+
+// Start the server
+startServer();
 
 

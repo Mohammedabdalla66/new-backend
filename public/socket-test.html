@@ -1,0 +1,372 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Socket.io Notification Test</title>
+    <script src="https://cdn.socket.io/4.8.1/socket.io.min.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+            overflow: hidden;
+        }
+        .header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 30px;
+            text-align: center;
+        }
+        .header h1 {
+            font-size: 28px;
+            margin-bottom: 10px;
+        }
+        .status {
+            display: inline-block;
+            padding: 6px 12px;
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: 600;
+            margin-top: 10px;
+        }
+        .status.connected {
+            background: rgba(255,255,255,0.3);
+        }
+        .status.disconnected {
+            background: rgba(255,0,0,0.3);
+        }
+        .content {
+            padding: 30px;
+        }
+        .section {
+            margin-bottom: 30px;
+        }
+        .section h2 {
+            font-size: 18px;
+            margin-bottom: 15px;
+            color: #333;
+            border-bottom: 2px solid #667eea;
+            padding-bottom: 8px;
+        }
+        .form-group {
+            margin-bottom: 15px;
+        }
+        label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: 600;
+            color: #555;
+            font-size: 14px;
+        }
+        input, textarea {
+            width: 100%;
+            padding: 12px;
+            border: 2px solid #e0e0e0;
+            border-radius: 8px;
+            font-size: 14px;
+            transition: border-color 0.3s;
+        }
+        input:focus, textarea:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+        textarea {
+            resize: vertical;
+            min-height: 80px;
+        }
+        button {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 8px;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+        button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(102, 126, 234, 0.4);
+        }
+        button:active {
+            transform: translateY(0);
+        }
+        button:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+        .notifications {
+            max-height: 400px;
+            overflow-y: auto;
+            border: 2px solid #e0e0e0;
+            border-radius: 8px;
+            padding: 15px;
+            background: #f9f9f9;
+        }
+        .notification {
+            background: white;
+            padding: 15px;
+            margin-bottom: 10px;
+            border-radius: 8px;
+            border-left: 4px solid #667eea;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+        }
+        .notification-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 8px;
+        }
+        .notification-title {
+            font-weight: 600;
+            color: #333;
+            font-size: 16px;
+        }
+        .notification-time {
+            font-size: 12px;
+            color: #999;
+        }
+        .notification-message {
+            color: #666;
+            font-size: 14px;
+            margin-bottom: 5px;
+        }
+        .notification-link {
+            color: #667eea;
+            font-size: 12px;
+            text-decoration: none;
+        }
+        .notification-link:hover {
+            text-decoration: underline;
+        }
+        .info {
+            background: #e3f2fd;
+            padding: 15px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            font-size: 14px;
+            color: #1976d2;
+        }
+        .info code {
+            background: rgba(255,255,255,0.7);
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-family: 'Courier New', monospace;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🔔 Socket.io Notification Test</h1>
+            <div id="status" class="status disconnected">Disconnected</div>
+        </div>
+        
+        <div class="content">
+            <div class="info">
+                <strong>ℹ️ Instructions:</strong><br>
+                Enter your User ID and interests, then click "Connect". 
+                Once connected, you can send test notifications via the API endpoint 
+                <code>POST /api/notify</code> or use the form below.
+            </div>
+
+            <div class="section">
+                <h2>🔌 Connection Settings</h2>
+                <div class="form-group">
+                    <label>Server URL:</label>
+                    <input type="text" id="serverUrl" value="http://localhost:5000" placeholder="http://localhost:5000">
+                </div>
+                <div class="form-group">
+                    <label>User ID:</label>
+                    <input type="text" id="userID" value="test-user-123" placeholder="Enter your user ID">
+                </div>
+                <div class="form-group">
+                    <label>Interests (comma-separated):</label>
+                    <input type="text" id="interests" value="tax,accounting,bookkeeping" placeholder="tax,accounting">
+                </div>
+                <button id="connectBtn" onclick="connectSocket()">Connect</button>
+                <button id="disconnectBtn" onclick="disconnectSocket()" disabled style="margin-left: 10px; background: #dc3545;">Disconnect</button>
+            </div>
+
+            <div class="section">
+                <h2>📤 Send Test Notification</h2>
+                <div class="form-group">
+                    <label>Title:</label>
+                    <input type="text" id="notifTitle" value="Test Notification" placeholder="Notification title">
+                </div>
+                <div class="form-group">
+                    <label>Message:</label>
+                    <textarea id="notifMessage" placeholder="Notification message">This is a test notification from the browser</textarea>
+                </div>
+                <button onclick="sendNotification()">Send Notification</button>
+            </div>
+
+            <div class="section">
+                <h2>📬 Received Notifications (<span id="notifCount">0</span>)</h2>
+                <div class="notifications" id="notifications">
+                    <div style="text-align: center; color: #999; padding: 20px;">
+                        No notifications received yet. Connect and wait for notifications...
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let socket = null;
+        let notificationCount = 0;
+
+        function updateStatus(connected) {
+            const statusEl = document.getElementById('status');
+            const connectBtn = document.getElementById('connectBtn');
+            const disconnectBtn = document.getElementById('disconnectBtn');
+            
+            if (connected) {
+                statusEl.textContent = 'Connected';
+                statusEl.className = 'status connected';
+                connectBtn.disabled = true;
+                disconnectBtn.disabled = false;
+            } else {
+                statusEl.textContent = 'Disconnected';
+                statusEl.className = 'status disconnected';
+                connectBtn.disabled = false;
+                disconnectBtn.disabled = true;
+            }
+        }
+
+        function addNotification(payload, eventType) {
+            notificationCount++;
+            document.getElementById('notifCount').textContent = notificationCount;
+            
+            const notificationsEl = document.getElementById('notifications');
+            if (notificationsEl.children[0] && notificationsEl.children[0].textContent.includes('No notifications')) {
+                notificationsEl.innerHTML = '';
+            }
+
+            const notifEl = document.createElement('div');
+            notifEl.className = 'notification';
+            
+            const time = new Date().toLocaleTimeString();
+            const title = payload.title || 'No title';
+            const message = payload.Message || payload.message || 'No message';
+            const link = payload.link || '#';
+            
+            notifEl.innerHTML = `
+                <div class="notification-header">
+                    <div class="notification-title">${title}</div>
+                    <div class="notification-time">${time} (${eventType})</div>
+                </div>
+                <div class="notification-message">${message}</div>
+                ${link !== '#' ? `<a href="${link}" class="notification-link" target="_blank">${link}</a>` : ''}
+            `;
+            
+            notificationsEl.insertBefore(notifEl, notificationsEl.firstChild);
+        }
+
+        function connectSocket() {
+            const serverUrl = document.getElementById('serverUrl').value;
+            const userID = document.getElementById('userID').value;
+            const interests = document.getElementById('interests').value.split(',').map(i => i.trim());
+
+            if (!userID) {
+                alert('Please enter a User ID');
+                return;
+            }
+
+            console.log('Connecting to:', serverUrl);
+            socket = io(serverUrl, {
+                transports: ['websocket', 'polling'],
+                reconnection: true,
+            });
+
+            socket.on('connect', () => {
+                console.log('✅ Connected:', socket.id);
+                updateStatus(true);
+                
+                // Register user
+                socket.emit('register', { userID, interests });
+                console.log('📝 Registered:', { userID, interests });
+            });
+
+            socket.on('disconnect', (reason) => {
+                console.log('❌ Disconnected:', reason);
+                updateStatus(false);
+            });
+
+            socket.on('connect_error', (error) => {
+                console.error('❌ Connection error:', error);
+                alert('Connection failed: ' + error.message);
+                updateStatus(false);
+            });
+
+            socket.on('notification', (payload) => {
+                console.log('🔔 Received notification:', payload);
+                addNotification(payload, 'notification');
+            });
+
+            socket.on('newNotification', (payload) => {
+                console.log('🔔 Received newNotification:', payload);
+                addNotification(payload, 'newNotification');
+            });
+        }
+
+        function disconnectSocket() {
+            if (socket) {
+                socket.disconnect();
+                socket = null;
+                updateStatus(false);
+            }
+        }
+
+        async function sendNotification() {
+            const serverUrl = document.getElementById('serverUrl').value;
+            const interests = document.getElementById('interests').value.split(',').map(i => i.trim());
+            const title = document.getElementById('notifTitle').value;
+            const message = document.getElementById('notifMessage').value;
+
+            if (!title || !message) {
+                alert('Please fill in title and message');
+                return;
+            }
+
+            try {
+                const response = await fetch(`${serverUrl}/api/notify`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ interests, title, message }),
+                });
+
+                const data = await response.json();
+                if (response.ok) {
+                    alert(`✅ Notification sent! ${data.count || 0} users notified.`);
+                } else {
+                    alert('❌ Error: ' + (data.message || 'Failed to send notification'));
+                }
+            } catch (error) {
+                alert('❌ Error: ' + error.message);
+            }
+        }
+
+        // Auto-connect on load (optional)
+        // connectSocket();
+    </script>
+</body>
+</html>
+
