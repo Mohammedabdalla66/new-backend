@@ -308,6 +308,10 @@ console.log("🔥 RAW FILES:", req.files);
       phoneNumber: req.body.phoneNumber,
       taxId: req.body.taxId,
       licenseNumber: req.body.licenseNumber,
+      address: req.body.address,
+      legalForm: req.body.legalForm,
+      companyType: req.body.companyType,
+      contactPersonName: req.body.contactPersonName,
       filesCount: req.files?.length || 0,
     });
     
@@ -319,6 +323,10 @@ console.log("🔥 RAW FILES:", req.files);
     const phoneNumber = req.body.phoneNumber;
     const taxId = req.body.taxId;
     const licenseNumber = req.body.licenseNumber;
+    const address = req.body.address;
+    const legalForm = req.body.legalForm;
+    const companyType = req.body.companyType;
+    const contactPersonName = req.body.contactPersonName;
     const verified = req.body.verified === 'true' || req.body.verified === true;
     
     // Validate required fields
@@ -408,6 +416,10 @@ console.log("🔥 RAW FILES:", req.files);
       verified: verified || false,
       taxId: taxId || undefined,
       licenseNumber: licenseNumber || undefined,
+      address: address || undefined,
+      legalForm: legalForm || undefined,
+      companyType: companyType || undefined,
+      contactPersonName: contactPersonName || undefined,
       documents: uploadedDocuments,
     };
     console.log('Service Provider data to save:', { ...serviceProviderData, password: '***', documentsCount: uploadedDocuments.length });
@@ -433,6 +445,10 @@ console.log("🔥 RAW FILES:", req.files);
       phone: savedUser.phone,
       taxId: savedUser.taxId,
       licenseNumber: savedUser.licenseNumber,
+      address: savedUser.address,
+      legalForm: savedUser.legalForm,
+      companyType: savedUser.companyType,
+      contactPersonName: savedUser.contactPersonName,
       documentsCount: savedUser.documents?.length || 0,
       createdAt: savedUser.createdAt,
     });
@@ -464,6 +480,10 @@ console.log("🔥 RAW FILES:", req.files);
         phone: user.phone,
         taxId: user.taxId,
         licenseNumber: user.licenseNumber,
+        address: user.address,
+        legalForm: user.legalForm,
+        companyType: user.companyType,
+        contactPersonName: user.contactPersonName,
       },
       documents: uploadedDocuments.map(doc => ({
         url: doc.url,

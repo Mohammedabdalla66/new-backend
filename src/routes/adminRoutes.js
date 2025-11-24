@@ -6,10 +6,6 @@ import {
   updateUser,
   updateUserStatus,
   listAllRequests,
-  listPendingRequests,
-  getRequestForAdmin,
-  approveRequest,
-  rejectRequest,
   listAllBookings,
   sendAdminNotification,
   listServiceProviders,
@@ -22,6 +18,9 @@ import {
   approveProposal,
   rejectProposal,
   listPendingProposals,
+  getRequestForAdmin,
+  approveRequest,
+  rejectRequest,
 } from '../controllers/adminController.js';
 import rateLimit from 'express-rate-limit';
 
@@ -66,8 +65,6 @@ router.get('/transactions', requireAuth, requireRole('admin'), listTransactions)
 router.get('/reports/daily', requireAuth, requireRole('admin'), dailyReport);
 
 // Requests and Bookings
-// IMPORTANT: More specific routes must come before parameterized routes
-router.get('/requests/pending', requireAuth, requireRole('admin'), listPendingRequests);
 router.get('/requests', requireAuth, requireRole('admin'), listAllRequests);
 router.get('/requests/:id', requireAuth, requireRole('admin'), getRequestForAdmin);
 router.patch('/requests/:id/approve', requireAuth, requireRole('admin'), approveRequest);

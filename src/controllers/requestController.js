@@ -119,12 +119,19 @@ export async function createRequest(req, res, next) {
       sample: finalAttachments[0]
     });
     
+    // Extract additional fields from request body
+    const legalForm = req.body?.legalForm;
+    const businessActivity = req.body?.businessActivity;
+    const registeredCapital = req.body?.registeredCapital;
+    const estimatedRevenue = req.body?.estimatedRevenue;
+    const estimatedExpenses = req.body?.estimatedExpenses;
+    
     // Create the request with proper data types
     const requestData = {
       client: req.user.sub,
       title: String(title),
       description: String(description),
-      budget: budget ? parseFloat(budget) : 0,
+      budget: budget || '', // Keep as string for budget range
       attachments: finalAttachments, // This should be an array of objects
       status: 'pending' // New requests start as pending, awaiting admin approval
     };
@@ -133,13 +140,29 @@ export async function createRequest(req, res, next) {
       requestData.deadline = new Date(deadline);
     }
     
+    // Add additional fields if provided
+    if (legalForm) {
+      requestData.legalForm = String(legalForm);
+    }
+    if (businessActivity) {
+      requestData.businessActivity = String(businessActivity);
+    }
+    if (registeredCapital) {
+      requestData.registeredCapital = String(registeredCapital);
+    }
+    if (estimatedRevenue) {
+      requestData.estimatedRevenue = String(estimatedRevenue);
+    }
+    if (estimatedExpenses) {
+      requestData.estimatedExpenses = String(estimatedExpenses);
+    }
+    
     console.log('Creating request with data:', {
       client: requestData.client,
       title: requestData.title,
       description: requestData.description,
       budget: requestData.budget,
       deadline: requestData.deadline,
-      status: requestData.status,
       attachmentsCount: finalAttachments.length,
       attachmentsType: typeof finalAttachments,
       attachmentsIsArray: Array.isArray(finalAttachments),
@@ -157,7 +180,7 @@ export async function createRequest(req, res, next) {
     const notification = await Notification.create({
       user: req.user.sub,
       title: "New Request Created",
-      Message: `Your request "${title}" has been submitted and is pending admin review.`,
+      Message: `Your request "${title}" has been created successfully.`,
       link: `/requests/${doc._id}`,
       data: { requestId: doc._id },
     });
@@ -242,8 +265,8 @@ export async function updateRequest(req, res, next) {
     const doc = await Request.findOne({ _id: req.params.id, client: req.user.sub });
     if (!doc) return res.status(404).json({ message: 'Not found' });
     
-    // Allow updates for submitted, open, or rejected requests (for resubmission)
-    if (doc.status !== 'submitted' && doc.status !== 'open' && doc.status !== 'rejected') {
+    // Allow updates for pending, open, or rejected requests (for resubmission)
+    if (doc.status !== 'pending' && doc.status !== 'open' && doc.status !== 'rejected') {
       return res.status(400).json({ message: 'Cannot update request in this status' });
     }
     

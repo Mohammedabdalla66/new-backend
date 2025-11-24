@@ -10,6 +10,7 @@ import rateLimit from 'express-rate-limit';
 import { connectDB } from './config/db.js';
 import authRoutes from './routes/authRoutes.js';
 import userRoutes from './routes/userRoutes.js';
+import portfolioRoutes from './routes/portfolioRoutes.js';
 import requestRoutes from './routes/requestRoutes.js';
 import bookingRoutes from './routes/bookingRoutes.js';
 import walletRoutes from './routes/walletRoutes.js';
@@ -43,22 +44,74 @@ app.use(helmet({
   crossOriginEmbedderPolicy: false,
 }));
 
-app.use(rateLimit({ windowMs: 15 * 60 * 1000, max: 300 }));
+// Rate limiting configuration
+// Create separate limiters for different route types
+const generalLimiter = rateLimit({ 
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 1000, // Increased from 300 to handle React StrictMode double renders
+  message: 'Too many requests, please try again later.',
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
+// More lenient rate limiter for auth routes (login, register)
+// In development: disabled or very high limit
+// In production: reasonable limit to prevent brute force
+const authLimiter = rateLimit({ 
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: process.env.NODE_ENV === 'production' ? 50 : (process.env.DISABLE_RATE_LIMIT === 'true' ? Number.MAX_SAFE_INTEGER : 10000), // Very high in dev, 50 in production
+  message: 'Too many authentication attempts, please try again later.',
+  standardHeaders: true,
+  legacyHeaders: false,
+  // Skip rate limiting if explicitly disabled
+  skip: (req) => {
+    if (process.env.DISABLE_RATE_LIMIT === 'true') {
+      console.log('⚠️ Rate limiting disabled for development');
+      return true;
+    }
+    return false;
+  },
+  // Custom handler to log rate limit hits
+  handler: (req, res) => {
+    const ip = req.ip || req.connection.remoteAddress;
+    console.warn(`🚫 Rate limit exceeded for IP: ${ip}, Path: ${req.path}, Method: ${req.method}`);
+    console.warn(`   Current limit: ${authLimiter.max} requests per ${authLimiter.windowMs / 1000 / 60} minutes`);
+    
+    res.status(429).json({
+      success: false,
+      message: 'Too many authentication attempts, please try again later.',
+      error: 'RATE_LIMIT_EXCEEDED',
+      retryAfter: Math.ceil(authLimiter.windowMs / 1000), // seconds
+      limit: authLimiter.max,
+      windowMs: authLimiter.windowMs
+    });
+  }
+});
+
 app.use(express.json({ limit: '2mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' })); // For FormData
 app.use(cookieParser());
 app.use(morgan('dev'));
 
 app.get('/api/health', (req, res) => res.json({ status: 'ok' }));
-app.use('/api/auth', authRoutes);
-app.use('/api/users', userRoutes);
-app.use('/api/requests', requestRoutes);
+
+// Apply auth limiter to auth routes (more lenient for login/register)
+app.use('/api/auth', authLimiter, authRoutes);
+
+// Apply general limiter to all other routes
+app.use('/api/users', generalLimiter, userRoutes);
+console.log('✅ User routes registered at /api/users');
+app.use('/api/portfolio', generalLimiter, portfolioRoutes);
+console.log('✅ Portfolio routes registered at /api/portfolio');
+app.use('/api/requests', generalLimiter, requestRoutes);
 console.log('✅ Request routes registered at /api/requests');
-app.use('/api/bookings', bookingRoutes);
-app.use('/api/wallet', walletRoutes);
-app.use('/api/messages', messageRoutes);
-app.use('/api/service-provider', serviceProviderRoutes);
-app.use('/api/admin', adminRoutes);
+app.use('/api/bookings', generalLimiter, bookingRoutes);
+app.use('/api/wallet', generalLimiter, walletRoutes);
+app.use('/api/messages', generalLimiter, messageRoutes);
+console.log('✅ Message routes registered at /api/messages');
+app.use('/api/service-provider', generalLimiter, serviceProviderRoutes);
+console.log('✅ Service Provider routes registered at /api/service-provider');
+app.use('/api/admin', generalLimiter, adminRoutes);
 console.log('✅ Admin routes registered at /api/admin');
 
 const server = http.createServer(app);

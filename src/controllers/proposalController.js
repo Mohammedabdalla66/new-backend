@@ -56,6 +56,37 @@ export async function listProposalsByRequest(req, res, next) {
   }
 }
 
+// Helper function to parse budget range
+function parseBudgetRange(budgetString) {
+  if (!budgetString || budgetString.trim() === '') {
+    return null; // No budget range specified
+  }
+
+  // Remove currency symbols and whitespace
+  const cleaned = budgetString.toString().replace(/[$,\s]/g, '');
+  
+  // Check if it's a range (e.g., "500-1000" or "500 - 1000")
+  if (cleaned.includes('-')) {
+    const parts = cleaned.split('-').map(p => p.trim());
+    if (parts.length === 2) {
+      const min = parseFloat(parts[0]);
+      const max = parseFloat(parts[1]);
+      if (!isNaN(min) && !isNaN(max) && min >= 0 && max >= min) {
+        return { min, max };
+      }
+    }
+  }
+  
+  // Check if it's a single number
+  const singleValue = parseFloat(cleaned);
+  if (!isNaN(singleValue) && singleValue >= 0) {
+    // If single value, treat it as both min and max (exact match)
+    return { min: singleValue, max: singleValue };
+  }
+  
+  return null; // Invalid format
+}
+
 export async function createProposal(req, res, next) {
   try {
     const { id: requestId } = req.params;
@@ -68,8 +99,31 @@ export async function createProposal(req, res, next) {
     
     const request = await Request.findById(requestId).populate('client');
     if (!request) return res.status(404).json({ message: 'Request not found' });
-    if (!['submitted', 'open'].includes(request.status)) {
-      return res.status(400).json({ message: 'Cannot propose on this request' });
+    // Only allow proposals on open requests (pending requests await admin approval)
+    if (request.status !== 'open') {
+      return res.status(400).json({ message: 'Cannot propose on this request. Request must be approved and open.' });
+    }
+    
+    // Validate price against budget range
+    const priceNum = parseFloat(price);
+    if (isNaN(priceNum) || priceNum < 0) {
+      return res.status(400).json({ message: 'Price must be a valid positive number' });
+    }
+    
+    if (request.budget) {
+      const budgetRange = parseBudgetRange(request.budget);
+      if (budgetRange) {
+        if (priceNum < budgetRange.min) {
+          return res.status(400).json({ 
+            message: `Price must be at least $${budgetRange.min.toLocaleString()}. The client's budget range is $${budgetRange.min.toLocaleString()} - $${budgetRange.max.toLocaleString()}.` 
+          });
+        }
+        if (priceNum > budgetRange.max) {
+          return res.status(400).json({ 
+            message: `Price must not exceed $${budgetRange.max.toLocaleString()}. The client's budget range is $${budgetRange.min.toLocaleString()} - $${budgetRange.max.toLocaleString()}.` 
+          });
+        }
+      }
     }
     
     // Check if provider already proposed

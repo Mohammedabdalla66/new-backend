@@ -1,11 +1,22 @@
 import { Router } from 'express';
 import { requireAuth, requireRole } from '../middlewares/auth.js';
-import { listRequests, getRequestForServiceProvider, listMyBookings, transitionBooking } from '../controllers/serviceProviderController.js';
+import { listRequests, getRequestForServiceProvider, listMyBookings, transitionBooking, getDashboardStats } from '../controllers/serviceProviderController.js';
 import { listMyProposals, createProposal, updateProposal, cancelProposal, getProposal, listProposalsByRequest } from '../controllers/proposalController.js';
 import { getServiceProviderWallet } from '../controllers/walletController.js';
 import { uploadMultiple } from '../middlewares/upload.js';
 
 const router = Router();
+
+// Dashboard stats endpoint
+router.get('/dashboard/stats', requireAuth, requireRole('serviceProvider'), async (req, res, next) => {
+  console.log('📊 GET /api/service-provider/dashboard/stats - User:', req.user?.sub, 'Role:', req.user?.role);
+  try {
+    await getDashboardStats(req, res, next);
+  } catch (err) {
+    console.error('Error in getDashboardStats route:', err);
+    next(err);
+  }
+});
 
 // Wallet endpoint for service providers (must come before dynamic routes)
 router.get('/wallet', requireAuth, requireRole('serviceProvider'), getServiceProviderWallet);

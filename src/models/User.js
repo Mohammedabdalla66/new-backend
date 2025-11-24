@@ -15,6 +15,9 @@ const userSchema = new mongoose.Schema(
     // Service Provider-specific fields
     taxId: String,
     licenseNumber: String,
+    legalForm: String, // Legal form of the company (e.g., 'limited_liability', 'public_company')
+    companyType: String, // Business activity sector (e.g., 'financial_sector', 'industrial_sector')
+    contactPersonName: String, // Name of the contact person
     documents: [
       {
         url: { type: String, required: true },

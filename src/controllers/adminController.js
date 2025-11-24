@@ -5,6 +5,7 @@ import { Proposal } from '../models/Proposal.js';
 import { Message } from '../models/Message.js';
 import { Transaction } from '../models/Transaction.js';
 import { Wallet } from '../models/Wallet.js';
+import { Chat } from '../models/Chat.js';
 import Notification from '../models/Notification.js';
 import { getIo } from '../sockets/socket.js';
 import mongoose from 'mongoose';
@@ -217,10 +218,20 @@ export async function rejectRequest(req, res, next) {
     const { id } = req.params;
     const { reason } = req.body; // Required rejection reason
     
-    if (!reason || reason.trim().length === 0) {
+    console.log('Reject request called:', { id, reason, body: req.body });
+    
+    if (!reason || typeof reason !== 'string' || reason.trim().length === 0) {
       return res.status(400).json({ 
         success: false,
-        message: 'Rejection reason is required' 
+        message: 'Rejection reason is required and must be a non-empty string' 
+      });
+    }
+    
+    // Validate MongoDB ObjectId format
+    if (!mongoose.Types.ObjectId.isValid(id)) {
+      return res.status(400).json({ 
+        success: false,
+        message: 'Invalid request ID format' 
       });
     }
     
@@ -233,38 +244,76 @@ export async function rejectRequest(req, res, next) {
       });
     }
     
+    console.log('Request found:', { id: request._id, status: request.status });
+    
     if (request.status !== 'pending') {
       return res.status(400).json({ 
         success: false,
-        message: 'Only pending requests can be rejected' 
+        message: `Only pending requests can be rejected. Current status: ${request.status}` 
       });
     }
     
-    request.status = 'rejected';
-    request.rejectionReason = reason.trim();
-    await request.save();
+    // Use findByIdAndUpdate to avoid validation issues with modified documents
+    let updatedRequest;
+    try {
+      updatedRequest = await Request.findByIdAndUpdate(
+        id,
+        { 
+          status: 'rejected',
+          rejectionReason: reason.trim()
+        },
+        { 
+          new: true, 
+          runValidators: true 
+        }
+      ).populate('client');
+    } catch (updateError) {
+      console.error('Error updating request:', updateError);
+      console.error('Update error name:', updateError.name);
+      console.error('Update error message:', updateError.message);
+      if (updateError.name === 'ValidationError') {
+        const errors = Object.values(updateError.errors || {}).map(e => e.message);
+        console.error('Validation errors:', errors);
+        return res.status(400).json({ 
+          success: false,
+          message: 'Validation error', 
+          errors 
+        });
+      }
+      throw updateError;
+    }
+    
+    if (!updatedRequest) {
+      return res.status(404).json({ 
+        success: false,
+        message: 'Request not found after update' 
+      });
+    }
     
     // Notify client
     const io = getIo();
     const notification = await Notification.create({
-      user: request.client._id,
+      user: updatedRequest.client._id || updatedRequest.client,
       title: 'Request Rejected',
-      Message: `Your request "${request.title}" has been rejected. Reason: ${reason}`,
-      link: `/requests/${request._id}`,
-      data: { requestId: request._id },
+      Message: `Your request "${updatedRequest.title}" has been rejected. Reason: ${reason.trim()}`,
+      link: `/requests/${updatedRequest._id}`,
+      data: { requestId: updatedRequest._id },
     });
     
-    io.to(request.client._id.toString()).emit('newNotification', {
-      id: notification._id,
-      title: notification.title,
-      message: notification.Message,
-      link: notification.link,
-      timestamp: notification.createdAt,
-    });
+    const clientId = updatedRequest.client?._id || updatedRequest.client;
+    if (clientId) {
+      io.to(clientId.toString()).emit('newNotification', {
+        id: notification._id,
+        title: notification.title,
+        message: notification.Message,
+        link: notification.link,
+        timestamp: notification.createdAt,
+      });
+    }
     
     res.json({ 
       success: true, 
-      data: request 
+      data: updatedRequest 
     });
   } catch (err) {
     next(err);
@@ -843,12 +892,36 @@ export async function approveProposal(req, res, next) {
     proposal.status = 'active';
     await proposal.save();
     
+    // Auto-create chat channel for this active proposal
+    const serviceProviderId = proposal.serviceProvider._id || proposal.serviceProvider;
+    const clientId = proposal.request.client._id || proposal.request.client;
+    
+    let chat = await Chat.findOne({
+      client: clientId,
+      serviceProvider: serviceProviderId,
+      proposal: proposal._id
+    });
+    
+    if (!chat) {
+      chat = await Chat.create({
+        client: clientId,
+        serviceProvider: serviceProviderId,
+        request: proposal.request._id,
+        proposal: proposal._id,
+        lastMessage: null,
+        unreadCount: {
+          client: 0,
+          serviceProvider: 0
+        }
+      });
+    }
+    
     // Notify client
     const io = getIo();
     const notification = await Notification.create({
       user: proposal.request.client,
       title: 'Proposal Approved',
-      Message: `A proposal for your request "${proposal.request.title}" has been approved by admin.`,
+      Message: `A proposal for your request "${proposal.request.title}" has been approved by admin. You can now chat with the service provider.`,
       link: `/requests/${proposal.request._id}/proposals`,
       data: { requestId: proposal.request._id, proposalId: proposal._id },
     });
@@ -865,7 +938,7 @@ export async function approveProposal(req, res, next) {
     const spNotification = await Notification.create({
       user: proposal.serviceProvider._id,
       title: 'Proposal Approved',
-      Message: `Your proposal for "${proposal.request.title}" has been approved by admin.`,
+      Message: `Your proposal for "${proposal.request.title}" has been approved by admin. You can now chat with the client.`,
       link: `/proposals/${proposal._id}`,
       data: { proposalId: proposal._id, requestId: proposal.request._id },
     });

@@ -26,4 +26,5 @@ export const upload = multer({
 
 export const uploadMultiple = upload.array('documents', 10); // Max 10 files
 export const uploadRequestFiles = upload.array('documents', 10); // For request attachments
+export const uploadSingle = upload.single('avatar'); // Single file upload for avatar
 
