@@ -21,6 +21,7 @@ const proposalSchema = new mongoose.Schema(
       default: 'pending',
       index: true,
     },
+    rejectionReason: { type: String, default: '' }, // Reason for rejection (if status is 'rejected')
   },
   { timestamps: true }
 );

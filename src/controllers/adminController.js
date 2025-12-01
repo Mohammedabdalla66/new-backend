@@ -975,6 +975,7 @@ export async function rejectProposal(req, res, next) {
     }
     
     proposal.status = 'rejected';
+    proposal.rejectionReason = reason ? reason.trim() : '';
     await proposal.save();
     
     // Notify service provider

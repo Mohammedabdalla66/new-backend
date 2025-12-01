@@ -248,7 +248,10 @@ export async function updateProposal(req, res, next) {
       ]
     });
     if (!proposal) return res.status(404).json({ message: 'Proposal not found' });
-    if (proposal.status !== 'pending') return res.status(400).json({ message: 'Only pending proposals can be updated' });
+    // Allow updates for pending or rejected proposals (for resubmission)
+    if (proposal.status !== 'pending' && proposal.status !== 'rejected') {
+      return res.status(400).json({ message: 'Only pending or rejected proposals can be updated' });
+    }
     
     // Handle file uploads if new files are provided
     const files = req.files || [];
@@ -280,6 +283,12 @@ export async function updateProposal(req, res, next) {
     if (req.body.durationDays !== undefined) proposal.durationDays = parseInt(req.body.durationDays);
     if (req.body.notes !== undefined) proposal.notes = req.body.notes;
     if (files.length > 0) proposal.attachments = uploadedAttachments;
+    
+    // If updating a rejected proposal, clear rejection reason and reset status to pending
+    if (proposal.status === 'rejected') {
+      proposal.rejectionReason = '';
+      proposal.status = 'pending';
+    }
     
     await proposal.save();
     await proposal.populate('request', 'title budget status');

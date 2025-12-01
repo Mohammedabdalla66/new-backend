@@ -16,9 +16,7 @@ The backend requires environment variables to run. Follow these steps:
 
 ### Server
 - `PORT` - Server port (default: 5000)
-- `CORS_ORIGINS` - (Optional) Comma-separated list of additional allowed origins for CORS
-  - Default allowed origins: `http://localhost:5173`, `http://localhost:3000`, `https://cahup.vercel.app`
-  - Example: `CORS_ORIGINS=https://example.com,https://app.example.com`
+- `CORS_ORIGIN` - Frontend URL for CORS
 
 ### Cloudinary (Required for file uploads)
 - `CLOUDINARY_CLOUD_NAME` - Your Cloudinary cloud name

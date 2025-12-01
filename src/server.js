@@ -26,39 +26,7 @@ import { initializeSocket } from './sockets/socket.js';
 dotenv.config();
 
 const app = express();
-
-// CORS configuration with explicit whitelist
-// When credentials: true, origin must be explicit (cannot be '*' or 'true')
-const allowedOrigins = [
-  'http://localhost:5173', // Vite dev server
-  'http://localhost:3000', // Alternative dev port
-  'https://cahup.vercel.app', // Production frontend
-  // Add more origins from environment variable if needed
-  ...(process.env.CORS_ORIGINS ? process.env.CORS_ORIGINS.split(',') : [])
-];
-
-app.use(cors({
-  origin: function (origin, callback) {
-    // Allow requests with no origin (like mobile apps, Postman, or same-origin requests)
-    if (!origin) return callback(null, true);
-    
-    // Check if origin is in the whitelist
-    if (allowedOrigins.includes(origin)) {
-      return callback(null, true);
-    }
-    
-    // Log blocked origins for debugging
-    console.warn(`🚫 CORS blocked origin: ${origin}`);
-    return callback(new Error('Not allowed by CORS'));
-  },
-  credentials: true,
-  methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
-  exposedHeaders: ['Content-Range', 'X-Content-Range']
-}));
-
-// Explicitly handle preflight requests
-app.options('*', cors());
+app.use(cors({ origin: process.env.CORS_ORIGIN || true, credentials: true }));
 
 // Configure Helmet with CSP that allows inline scripts for test page
 app.use(helmet({
