@@ -26,7 +26,13 @@ import { initializeSocket } from './sockets/socket.js';
 dotenv.config();
 
 const app = express();
-app.use(cors({ origin: process.env.CORS_ORIGIN || true, credentials: true }));
+app.use(cors({
+  origin: [
+    "http://localhost:5173",
+    "https://cahup.vercel.app"
+  ],
+  credentials: true
+}));
 
 // Configure Helmet with CSP that allows inline scripts for test page
 app.use(helmet({
