@@ -45,7 +45,11 @@ export async function createRequest(req, res, next) {
           for (const file of files) {
             try {
               console.log(`Uploading file: ${file.originalname} (${file.size} bytes)`);
-              const result = await uploadToCloudinary(file, 'accountax/requests');
+              // Use upload preset for request files
+              const result = await uploadToCloudinary(file, 'accountax/requests', {
+                upload_preset: 'public_raw_upload',
+                resource_type: 'raw',
+              });
               uploadedAttachments.push({
                 name: file.originalname,
                 url: result.secure_url,
@@ -281,12 +285,18 @@ export async function updateRequest(req, res, next) {
           
           for (const file of files) {
             try {
-              const result = await uploadToCloudinary(file, 'accountax/requests');
+              console.log(`Uploading file: ${file.originalname} (${file.size} bytes)`);
+              // Use upload preset for request files
+              const result = await uploadToCloudinary(file, 'accountax/requests', {
+                upload_preset: 'public_raw_upload',
+                resource_type: 'raw',
+              });
               uploadedAttachments.push({
                 name: file.originalname,
                 url: result.secure_url,
                 type: file.mimetype || 'file',
               });
+              console.log(`File uploaded successfully: ${result.secure_url}`);
             } catch (uploadError) {
               console.error('Error uploading file to Cloudinary:', uploadError);
               uploadedAttachments.push({

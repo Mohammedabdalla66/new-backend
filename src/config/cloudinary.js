@@ -13,24 +13,33 @@ cloudinary.config({
 export { cloudinary };
 
 // Helper function to upload file to Cloudinary
-export async function uploadToCloudinary(file, folder = 'accountax') {
+export async function uploadToCloudinary(file, folder = 'accountax', options = {}) {
   try {
     if (!file) {
       throw new Error('No file provided');
     }
 
+    // Default upload options
+    const uploadOptions = {
+      folder: folder,
+      resource_type: options.resource_type || 'auto', // auto-detect image, video, raw, or use specified type
+      allowed_formats: ['jpg', 'jpeg', 'png', 'pdf', 'doc', 'docx'],
+      ...options, // Allow overriding any options (including upload_preset)
+    };
+
     // If file is a buffer (from multer memory storage)
     if (file.buffer) {
       return new Promise((resolve, reject) => {
         const uploadStream = cloudinary.uploader.upload_stream(
-          {
-            folder: folder,
-            resource_type: 'auto', // auto-detect image, video, raw
-            allowed_formats: ['jpg', 'jpeg', 'png', 'pdf', 'doc', 'docx'],
-          },
+          uploadOptions,
           (error, result) => {
-            if (error) reject(error);
-            else resolve(result);
+            if (error) {
+              console.error('Cloudinary upload error:', error);
+              reject(error);
+            } else {
+              console.log('✅ Cloudinary upload successful:', result.secure_url);
+              resolve(result);
+            }
           }
         );
         uploadStream.end(file.buffer);
@@ -39,11 +48,8 @@ export async function uploadToCloudinary(file, folder = 'accountax') {
     
     // If file has a path (from multer disk storage)
     if (file.path) {
-      const result = await cloudinary.uploader.upload(file.path, {
-        folder: folder,
-        resource_type: 'auto',
-        allowed_formats: ['jpg', 'jpeg', 'png', 'pdf', 'doc', 'docx'],
-      });
+      const result = await cloudinary.uploader.upload(file.path, uploadOptions);
+      console.log('✅ Cloudinary upload successful:', result.secure_url);
       return result;
     }
 
