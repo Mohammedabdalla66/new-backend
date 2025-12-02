@@ -17,6 +17,7 @@ import walletRoutes from './routes/walletRoutes.js';
 import messageRoutes from './routes/messageRoutes.js';
 import serviceProviderRoutes from './routes/serviceProviderRoutes.js';
 import adminRoutes from './routes/adminRoutes.js';
+import downloadRoutes from './routes/downloadRoutes.js';
 import { notFound, errorHandler } from './middlewares/errorHandler.js';
 import Notification from './models/Notification.js';
 import { User } from './models/User.js';
@@ -119,6 +120,8 @@ app.use('/api/service-provider', generalLimiter, serviceProviderRoutes);
 console.log('✅ Service Provider routes registered at /api/service-provider');
 app.use('/api/admin', generalLimiter, adminRoutes);
 console.log('✅ Admin routes registered at /api/admin');
+app.use('/api', generalLimiter, downloadRoutes);
+console.log('✅ Download routes registered at /api/download');
 
 const server = http.createServer(app);
 const io = initializeSocket(server);
