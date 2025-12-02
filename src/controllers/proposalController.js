@@ -62,8 +62,8 @@ function parseBudgetRange(budgetString) {
     return null; // No budget range specified
   }
 
-  // Remove currency symbols and whitespace
-  const cleaned = budgetString.toString().replace(/[$,\s]/g, '');
+  // Remove currency symbols (OMR, $, etc.) and whitespace
+  const cleaned = budgetString.toString().replace(/[OMR$,\s]/gi, '');
   
   // Check if it's a range (e.g., "500-1000" or "500 - 1000")
   if (cleaned.includes('-')) {
@@ -113,16 +113,13 @@ export async function createProposal(req, res, next) {
     if (request.budget) {
       const budgetRange = parseBudgetRange(request.budget);
       if (budgetRange) {
+        // Only enforce minimum price, allow prices higher than maximum budget
         if (priceNum < budgetRange.min) {
           return res.status(400).json({ 
-            message: `Price must be at least $${budgetRange.min.toLocaleString()}. The client's budget range is $${budgetRange.min.toLocaleString()} - $${budgetRange.max.toLocaleString()}.` 
+            message: `Price must be at least ${budgetRange.min.toLocaleString()} OMR. The client's budget range is ${budgetRange.min.toLocaleString()} - ${budgetRange.max.toLocaleString()} OMR, but you can offer a higher price.` 
           });
         }
-        if (priceNum > budgetRange.max) {
-          return res.status(400).json({ 
-            message: `Price must not exceed $${budgetRange.max.toLocaleString()}. The client's budget range is $${budgetRange.min.toLocaleString()} - $${budgetRange.max.toLocaleString()}.` 
-          });
-        }
+        // Removed maximum price check - allow prices higher than client's maximum budget
       }
     }
     
