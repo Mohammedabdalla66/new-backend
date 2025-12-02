@@ -100,33 +100,108 @@ export async function downloadFile(req, res, next) {
     }
 
     // Generate a signed download URL to avoid 401 errors
-    // For raw files, we need to generate a signed URL that will work even if the file is private
+    // For raw files uploaded with upload presets, we need signed URLs
     let downloadUrl;
+    let fileBuffer;
+    
     try {
-      // Use Cloudinary URL helper to generate a signed URL
-      // For raw files, we need to use the resource_type and generate a signed URL
-      downloadUrl = cloudinary.url(filePublicId, {
-        resource_type: resourceType,
-        type: 'upload',
-        secure: true,
-        sign_url: true, // Sign the URL to avoid 401 errors
-      });
+      // First, try using secure_url directly (for public files uploaded with upload preset)
+      const secureUrl = fileInfo.secure_url || fileInfo.url;
       
-      // If secure_url is available and file is public, we can use it
-      // But for private files, use the signed URL
-      if (!downloadUrl && (fileInfo.secure_url || fileInfo.url)) {
-        downloadUrl = fileInfo.secure_url || fileInfo.url;
+      if (secureUrl) {
+        try {
+          console.log('Attempting to download via secure_url...');
+          const response = await axios.get(secureUrl, {
+            responseType: 'arraybuffer',
+            timeout: 30000,
+            validateStatus: (status) => status < 500,
+          });
+          
+          if (response.status === 200) {
+            fileBuffer = Buffer.from(response.data);
+            console.log('✅ File downloaded successfully via secure_url');
+          } else if (response.status === 401) {
+            console.log('Secure URL returned 401, generating signed URL...');
+            // If secure_url gives 401, generate a signed URL
+            downloadUrl = cloudinary.url(filePublicId, {
+              resource_type: resourceType,
+              secure: true,
+              sign_url: true,
+            });
+            
+            const signedResponse = await axios.get(downloadUrl, {
+              responseType: 'arraybuffer',
+              timeout: 30000,
+            });
+            
+            if (signedResponse.status === 200) {
+              fileBuffer = Buffer.from(signedResponse.data);
+              console.log('✅ File downloaded successfully via signed URL');
+            } else {
+              throw new Error(`Signed URL returned status ${signedResponse.status}`);
+            }
+          } else {
+            throw new Error(`Secure URL returned status ${response.status}`);
+          }
+        } catch (urlError) {
+          // If secure_url fetch fails, try signed URL
+          if (urlError.response?.status === 401 || !fileBuffer) {
+            console.log('URL fetch failed, generating signed URL as fallback...');
+            downloadUrl = cloudinary.url(filePublicId, {
+              resource_type: resourceType,
+              secure: true,
+              sign_url: true,
+            });
+            
+            const signedResponse = await axios.get(downloadUrl, {
+              responseType: 'arraybuffer',
+              timeout: 30000,
+            });
+            
+            if (signedResponse.status === 200) {
+              fileBuffer = Buffer.from(signedResponse.data);
+              console.log('✅ File downloaded successfully via signed URL');
+            } else {
+              throw urlError; // Re-throw original error
+            }
+          } else {
+            throw urlError;
+          }
+        }
+      } else {
+        throw new Error('No secure URL available for download');
       }
-    } catch (urlError) {
-      console.error('Error generating signed URL:', urlError);
-      // Fallback to secure_url if available
-      downloadUrl = fileInfo.secure_url || fileInfo.url;
+    } catch (downloadError) {
+      console.error('Error downloading file from Cloudinary:', downloadError);
+      
+      // If all methods fail, return detailed error
+      const errorStatus = downloadError.response?.status;
+      let errorMessage = downloadError.message;
+      let hint = undefined;
+      
+      if (errorStatus === 401) {
+        errorMessage = 'File access denied (401). The file may be private or the upload preset may require authentication.';
+        hint = 'To fix this:\n' +
+               '1. Go to Cloudinary Dashboard > Settings > Upload\n' +
+               '2. Find your upload preset "public_raw_upload"\n' +
+               '3. Ensure "Signing Mode" is set to "Unsigned" OR "Signed" with proper configuration\n' +
+               '4. Ensure "Access Mode" is set to "Public" for public files\n' +
+               '5. For private files, use signed URLs by setting "Signing Mode" to "Signed"';
+      }
+      
+      return res.status(errorStatus || 500).json({
+        success: false,
+        message: 'Error downloading file from Cloudinary',
+        error: errorMessage,
+        hint: hint,
+        details: downloadError.response?.data || downloadError.message,
+      });
     }
     
-    if (!downloadUrl) {
-      return res.status(404).json({
+    if (!fileBuffer) {
+      return res.status(500).json({
         success: false,
-        message: 'File URL not found',
+        message: 'Failed to download file content',
       });
     }
 
@@ -165,42 +240,27 @@ export async function downloadFile(req, res, next) {
       }
     }
 
-    // Fetch the file from Cloudinary
-    try {
-      const response = await axios.get(downloadUrl, {
-        responseType: 'arraybuffer',
-        timeout: 30000, // 30 second timeout
-      });
-
-      // Determine content type
-      let contentType = 'application/octet-stream';
-      if (fileInfo.format) {
-        const mimeTypes = {
-          pdf: 'application/pdf',
-          doc: 'application/msword',
-          docx: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-          jpg: 'image/jpeg',
-          jpeg: 'image/jpeg',
-          png: 'image/png',
-        };
-        contentType = mimeTypes[fileInfo.format.toLowerCase()] || contentType;
-      }
-
-      // Set response headers for download
-      res.setHeader('Content-Disposition', `attachment; filename="${encodeURIComponent(fileName)}"`);
-      res.setHeader('Content-Type', contentType);
-      res.setHeader('Content-Length', response.data.length);
-
-      // Send the file
-      res.send(Buffer.from(response.data));
-    } catch (downloadError) {
-      console.error('Error downloading file from Cloudinary:', downloadError);
-      return res.status(500).json({
-        success: false,
-        message: 'Error downloading file from Cloudinary',
-        error: downloadError.message,
-      });
+    // Determine content type
+    let contentType = 'application/octet-stream';
+    if (fileInfo.format) {
+      const mimeTypes = {
+        pdf: 'application/pdf',
+        doc: 'application/msword',
+        docx: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+        jpg: 'image/jpeg',
+        jpeg: 'image/jpeg',
+        png: 'image/png',
+      };
+      contentType = mimeTypes[fileInfo.format.toLowerCase()] || contentType;
     }
+
+    // Set response headers for download
+    res.setHeader('Content-Disposition', `attachment; filename="${encodeURIComponent(fileName)}"`);
+    res.setHeader('Content-Type', contentType);
+    res.setHeader('Content-Length', fileBuffer.length);
+
+    // Send the file
+    res.send(fileBuffer);
   } catch (error) {
     console.error('Error in downloadFile controller:', error);
     next(error);
