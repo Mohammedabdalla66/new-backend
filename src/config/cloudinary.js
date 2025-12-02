@@ -22,9 +22,10 @@ export async function uploadToCloudinary(file, folder = 'accountax', options = {
     // Default upload options
     const uploadOptions = {
       folder: folder,
-      resource_type: options.resource_type || 'auto', // auto-detect image, video, raw, or use specified type
+      resource_type: options.resource_type || "row", // auto-detect image, video, raw, or use specified type
       allowed_formats: ['jpg', 'jpeg', 'png', 'pdf', 'doc', 'docx'],
       ...options, // Allow overriding any options (including upload_preset)
+      public_id: `${Date.now()}_${file.originalname}`
     };
 
     // If file is a buffer (from multer memory storage)
