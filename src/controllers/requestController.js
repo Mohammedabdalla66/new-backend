@@ -45,10 +45,14 @@ export async function createRequest(req, res, next) {
           for (const file of files) {
             try {
               console.log(`Uploading file: ${file.originalname} (${file.size} bytes)`);
-              // Use upload preset for request files
+              // TEMPORARY FIX: Removed upload_preset due to Cloudinary account trust block
+              // Cloudinary flagged account as untrusted, causing 401 errors with preset
+              // Using basic upload settings until Cloudinary Support resolves the trust issue
+              // TODO: Restore upload_preset: 'public_raw_upload' after trust block is removed
               const result = await uploadToCloudinary(file, 'accountax/requests', {
-                upload_preset: 'public_raw_upload',
                 resource_type: 'raw',
+                // Note: Without preset, filenames/extensions may not be preserved
+                // Download endpoint will handle extension appending
               });
               uploadedAttachments.push({
                 name: file.originalname,
@@ -286,10 +290,14 @@ export async function updateRequest(req, res, next) {
           for (const file of files) {
             try {
               console.log(`Uploading file: ${file.originalname} (${file.size} bytes)`);
-              // Use upload preset for request files
+              // TEMPORARY FIX: Removed upload_preset due to Cloudinary account trust block
+              // Cloudinary flagged account as untrusted, causing 401 errors with preset
+              // Using basic upload settings until Cloudinary Support resolves the trust issue
+              // TODO: Restore upload_preset: 'public_raw_upload' after trust block is removed
               const result = await uploadToCloudinary(file, 'accountax/requests', {
-                upload_preset: 'public_raw_upload',
                 resource_type: 'raw',
+                // Note: Without preset, filenames/extensions may not be preserved
+                // Download endpoint will handle extension appending
               });
               uploadedAttachments.push({
                 name: file.originalname,
