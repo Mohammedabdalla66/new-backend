@@ -24,10 +24,15 @@ const chatSchema = new mongoose.Schema(
       ref: 'Proposal',
       index: true
     },
+    relatedOrderId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'Booking',
+      index: true
+    },
     lastMessage: {
       text: String,
       timestamp: Date,
-      sender: { type: String, enum: ['client', 'serviceProvider'] }
+      sender: { type: String, enum: ['client', 'serviceProvider', 'admin'] }
     },
     unreadCount: {
       client: { type: Number, default: 0 },

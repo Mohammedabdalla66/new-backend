@@ -22,6 +22,14 @@ import {
   approveRequest,
   rejectRequest,
 } from '../controllers/adminController.js';
+import {
+  getInProgressOrders,
+  getOrderDetails,
+  updateOrderStatus,
+  sendSystemMessage,
+  recalculateRiskScore,
+  addWarning,
+} from '../controllers/adminOrderController.js';
 import rateLimit from 'express-rate-limit';
 
 const router = Router();
@@ -81,6 +89,14 @@ router.post('/subadmins', requireAuth, requireRole('admin'), createSubAdmin);
 
 // Notifications
 router.post('/notifications/send', requireAuth, requireRole('admin'), sendAdminNotification);
+
+// Admin Order Management
+router.get('/orders/in-progress', requireAuth, requireRole('admin'), getInProgressOrders);
+router.get('/orders/:orderId', requireAuth, requireRole('admin'), getOrderDetails);
+router.patch('/orders/:orderId/status', requireAuth, requireRole('admin'), updateOrderStatus);
+router.post('/orders/:orderId/system-message', requireAuth, requireRole('admin'), sendSystemMessage);
+router.post('/orders/:orderId/risk/recalculate', requireAuth, requireRole('admin'), recalculateRiskScore);
+router.post('/orders/:orderId/warning', requireAuth, requireRole('admin'), addWarning);
 
 export default router;
 

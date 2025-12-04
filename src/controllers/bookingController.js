@@ -83,6 +83,9 @@ export async function acceptProposal(req, res, next) {
     
     // Create booking
     const serviceProviderId = proposal.serviceProvider || proposal.company; // Support both
+    const deadline = new Date();
+    deadline.setDate(deadline.getDate() + proposal.durationDays);
+    
     const booking = await Booking.create({
       client: req.user.sub,
       serviceProvider: serviceProviderId,
@@ -93,7 +96,21 @@ export async function acceptProposal(req, res, next) {
         duration: `${proposal.durationDays} days`,
         notes: proposal.notes,
       },
+      projectTitle: request.title,
+      providerId: serviceProviderId,
+      offerId: proposal._id,
       status: 'pending',
+      deadline: deadline,
+      paymentStatus: 'held',
+      timeline: [{
+        event: 'submitted',
+        date: request.createdAt || new Date(),
+        description: 'Request submitted by client',
+      }, {
+        event: 'offer_accepted',
+        date: new Date(),
+        description: 'Client accepted the proposal',
+      }],
     });
     
     // Update transaction with booking ID
