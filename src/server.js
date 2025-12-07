@@ -28,11 +28,39 @@ dotenv.config();
 
 const app = express();
 app.use(cors({
-  origin: [
-    "http://localhost:5173",
-    "https://cahup.vercel.app"
-  ],
-  credentials: true
+  origin: function (origin, callback) {
+    // Allow requests with no origin (like mobile apps or curl requests)
+    if (!origin) return callback(null, true);
+    
+    const allowedOrigins = [
+      "http://localhost:5173",
+      "https://cahup.vercel.app",
+      "https://new-front-r42r42inf-mohammed-abdallahs-projects-ae981823.vercel.app",
+      // Allow all Vercel preview deployments (pattern matching)
+      /^https:\/\/.*\.vercel\.app$/
+    ];
+    
+    // Check if origin matches any allowed origin
+    const isAllowed = allowedOrigins.some(allowed => {
+      if (typeof allowed === 'string') {
+        return origin === allowed;
+      } else if (allowed instanceof RegExp) {
+        return allowed.test(origin);
+      }
+      return false;
+    });
+    
+    if (isAllowed) {
+      callback(null, true);
+    } else {
+      // Log blocked origin for debugging
+      console.warn(`⚠️ CORS blocked origin: ${origin}`);
+      callback(new Error('Not allowed by CORS'));
+    }
+  },
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
 }));
 
 // Configure Helmet with CSP that allows inline scripts for test page
