@@ -27,15 +27,23 @@ import { initializeSocket } from './sockets/socket.js';
 dotenv.config();
 
 const app = express();
+
+// CORS configuration - allows all Vercel preview deployments
 app.use(cors({
   origin: function (origin, callback) {
-    // Allow requests with no origin (like mobile apps or curl requests)
+    // Allow requests with no origin (like mobile apps, curl, Postman)
     if (!origin) return callback(null, true);
     
     const allowedOrigins = [
+      // Local development
       "http://localhost:5173",
+      "http://localhost:3000",
+      "http://localhost:5174",
+      // Production domains
       "https://cahup.vercel.app",
+      // Specific Vercel preview deployments (add as needed)
       "https://new-front-r42r42inf-mohammed-abdallahs-projects-ae981823.vercel.app",
+      "https://cahup-52s90icva-mohammed-abdallahs-projects-ae981823.vercel.app",
       // Allow all Vercel preview deployments (pattern matching)
       /^https:\/\/.*\.vercel\.app$/
     ];
@@ -55,12 +63,15 @@ app.use(cors({
     } else {
       // Log blocked origin for debugging
       console.warn(`⚠️ CORS blocked origin: ${origin}`);
-      callback(new Error('Not allowed by CORS'));
+      console.warn(`   Allowed origins: ${allowedOrigins.filter(o => typeof o === 'string').join(', ')}`);
+      callback(new Error(`Not allowed by CORS. Origin: ${origin}`));
     }
   },
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Accept'],
+  exposedHeaders: ['Content-Range', 'X-Content-Range'],
+  maxAge: 86400, // 24 hours - cache preflight requests
 }));
 
 // Configure Helmet with CSP that allows inline scripts for test page
